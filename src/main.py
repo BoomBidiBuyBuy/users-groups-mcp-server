@@ -2,7 +2,7 @@ import logging
 from typing import Annotated, List, Optional
 
 from user_group_db.models import Group, User
-from storage import SessionLocal
+from storage import SessionLocal, engine, init_db
 
 from envs import MCP_HOST, MCP_PORT
 from fastmcp import FastMCP
@@ -287,6 +287,7 @@ async def http_health_check(request):
 
 
 def main():
+    init_db(engine)
     mcp_server.run(
         transport="http",
         host=MCP_HOST,
