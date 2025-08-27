@@ -278,63 +278,18 @@ async def get_user_by_telegram_id(
         logger.error(f"Error getting user: {e}")
         return f"Database error: {str(e)}"
 
-@mcp_server.custom_route("/create_user", methods=["POST"])
-async def http_create_user(request):
-    """HTTP endpoint for creating a user."""
-    try:
-        data = await request.json()
-        telegram_id = data.get("telegram_id")
-        username = data.get("username")
-        first_name = data.get("first_name")
-        last_name = data.get("last_name")
-        
-        if not telegram_id:
-            return JSONResponse(
-                {"error": "telegram_id is required"}, 
-                status_code=400
-            )
-        
-        if not username:
-            return JSONResponse(
-                {"error": "username is required"}, 
-                status_code=400
-            )
-        
-        # Create user directly in database
-        try:
-            with SessionLocal() as session:
-                user = User.create(
-                    telegram_id=telegram_id,
-                    username=username,
-                    first_name=first_name,
-                    last_name=last_name,
-                    session=session,
-                )
-            result = f"User created successfully with ID: {user.id}, Telegram ID: {user.telegram_id}"
-            return JSONResponse({"message": result})
-            
-        except ValueError as e:
-            # User already exists
-            return JSONResponse({"message": str(e)}, status_code=400)
-        
-    except Exception as e:
-        logger.error(f"Error in HTTP create_user: {e}")
-        return JSONResponse(
-            {"error": f"Internal server error: {str(e)}"}, 
-            status_code=500
-        )
-
     except ValueError:
-        return JSONResponse(
-            {"error": "Invalid telegram_id format"}, 
-            status_code=400
-        )
+        return JSONResponse({"error": "Invalid telegram_id format"}, status_code=400)
     except Exception as e:
         logger.error(f"Error in HTTP get_user: {e}")
         return JSONResponse(
-            {"error": f"Internal server error: {str(e)}"}, 
-            status_code=500
+            {"error": f"Internal server error: {str(e)}"}, status_code=500
         )
+
+
+@mcp_server.custom_route("/health", methods=["GET"])
+async def http_health_check(request):
+    return JSONResponse({"status": "healthy", "service": "users-groups-mcp-server"})
 
 
 def main():
