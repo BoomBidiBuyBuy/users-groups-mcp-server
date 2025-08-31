@@ -101,9 +101,7 @@ async def remove_user_from_group(
 @mcp_server.tool
 async def create_user(
     telegram_id: Annotated[int, "Telegram ID of the user to create"],
-    username: Annotated[
-        Optional[str], "Telegram username of the user to create"
-    ] = None,
+    username: Annotated[str, "Telegram username of the user to create"],
     first_name: Annotated[Optional[str], "First name of the user to create"] = None,
     last_name: Annotated[Optional[str], "Last name of the user to create"] = None,
 ) -> str:
@@ -279,6 +277,14 @@ async def get_user_by_telegram_id(
     except Exception as e:
         logger.error(f"Error getting user: {e}")
         return f"Database error: {str(e)}"
+
+    except ValueError:
+        return JSONResponse({"error": "Invalid telegram_id format"}, status_code=400)
+    except Exception as e:
+        logger.error(f"Error in HTTP get_user: {e}")
+        return JSONResponse(
+            {"error": f"Internal server error: {str(e)}"}, status_code=500
+        )
 
 
 @mcp_server.custom_route("/health", methods=["GET"])
