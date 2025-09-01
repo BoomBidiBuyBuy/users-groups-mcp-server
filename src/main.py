@@ -4,9 +4,10 @@ from typing import Annotated, List, Optional
 from user_group_db.models import Group, User
 from storage import SessionLocal, engine, init_db
 
-from envs import MCP_HOST, MCP_PORT
+from envs import MCP_HOST, MCP_PORT, MCP_REGISTRY_ENDPOINT
 from fastmcp import FastMCP
 from starlette.responses import JSONResponse
+import httpx
 
 
 logger = logging.getLogger(__name__)
@@ -70,10 +71,10 @@ async def add_user_to_group(
     try:
         with SessionLocal() as session:
             success = Group.add_user(group_id, telegram_id, session)
-        if success:
-            return f"User {telegram_id} added to group {group_id} successfully"
-        else:
-            return f"Failed to add user {telegram_id} to group {group_id}. Check if both exist."
+            if success:
+                return f"User {telegram_id} added to group {group_id} successfully.  Need to attach the 'student' role to the user {telegram_id}"
+            else:
+                return f"Failed to add user {telegram_id} to group {group_id}. Check if both exist."
     except Exception as e:
         logger.error(f"Error adding user to group: {e}")
         return f"Database error: {str(e)}"
@@ -118,7 +119,15 @@ async def create_user(
                 last_name=last_name,
                 session=session,
             )
-        return f"User created successfully with ID: {user.id}, Telegram ID: {user.telegram_id}"
+
+            response = httpx.post(
+                f"{MCP_REGISTRY_ENDPOINT}/register_user", json={"user_id": telegram_id}
+            )
+            if response.status_code != 200:
+                session.rollback()
+                return f"Error registering user: {response.text}"
+
+        return f"User created successfully."
     except ValueError as e:
         return f"Error creating user: {str(e)}"
     except Exception as e:
