@@ -1,4 +1,13 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Table, Text
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    DateTime,
+    ForeignKey,
+    Table,
+    Text,
+    Boolean,
+)
 from typing import List, Optional
 import logging
 from sqlalchemy.sql import func
@@ -221,6 +230,7 @@ class User(Base):
     last_name = Column(String(255), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    is_activated = Column(Boolean, nullable=False, default=False)
 
     # Relationship with groups through association table
     groups = relationship(

@@ -17,6 +17,13 @@ mcp_server = FastMCP(name="users-groups-mcp")
 
 
 @mcp_server.tool
+async def generate_username() -> str:
+    """Generate a friendly username and create a user record in the database."""
+    logger.info("Getting all groups")
+    pass
+
+
+@mcp_server.tool
 async def create_group(
     name: Annotated[str, "Name of the group"],
     user_ids: Annotated[
@@ -198,6 +205,48 @@ async def get_group_by_id(
         return result
     except Exception as e:
         logger.error(f"Error getting group: {e}")
+        return f"Database error: {str(e)}"
+
+
+@mcp_server.tool(tags=["admin"])
+async def activate_user(
+    username: Annotated[str, "Username of the user to activate"],
+) -> str:
+    """Activate a user by username (sets is_activated=True)."""
+    logger.info(f"Activating user: {username}")
+    try:
+        with SessionLocal() as session:
+            user = session.query(User).filter(User.username == username).first()
+            if not user:
+                return f"User with username '{username}' not found"
+            if user.is_activated:
+                return f"User '{username}' is already activated"
+            user.is_activated = True
+            session.commit()
+            return f"User '{username}' activated successfully"
+    except Exception as e:
+        logger.error(f"Error activating user: {e}")
+        return f"Database error: {str(e)}"
+
+
+@mcp_server.tool(tags=["admin"])
+async def deactivate_user(
+    username: Annotated[str, "Username of the user to deactivate"],
+) -> str:
+    """Deactivate a user by username (sets is_activated=False)."""
+    logger.info(f"Deactivating user: {username}")
+    try:
+        with SessionLocal() as session:
+            user = session.query(User).filter(User.username == username).first()
+            if not user:
+                return f"User with username '{username}' not found"
+            if not user.is_activated:
+                return f"User '{username}' is already deactivated"
+            user.is_activated = False
+            session.commit()
+            return f"User '{username}' deactivated successfully"
+    except Exception as e:
+        logger.error(f"Error deactivating user: {e}")
         return f"Database error: {str(e)}"
 
 
