@@ -225,7 +225,7 @@ class User(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(String(255), unique=True, nullable=True, index=True)
-    username = Column(String(255), nullable=True, index=True)
+    username = Column(String(255), unique=True, nullable=True, index=True)
     first_name = Column(String(255), nullable=True)
     last_name = Column(String(255), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -245,16 +245,18 @@ class User(Base):
     @classmethod
     def create(
         cls,
-        user_id: str,
         session,
+        user_id: Optional[str] = None,
         username: Optional[str] = None,
         first_name: Optional[str] = None,
         last_name: Optional[str] = None,
     ) -> "User":
         """Create a new user. Raises ValueError if user_id exists."""
-        existing_user = session.query(cls).filter(cls.user_id == user_id).first()
-        if existing_user:
-            raise ValueError(f"User with user_id {user_id} already exists")
+        if user_id and username:
+            raise ValueError(
+                "Cannot create user with both user_id and username"
+            )
+
         user = cls(
             user_id=user_id,
             username=username,
