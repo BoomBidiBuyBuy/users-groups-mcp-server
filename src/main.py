@@ -46,15 +46,30 @@ async def generate_username() -> str:
             logger.error(f"Error generating username: {response.text}")
             return f"Error generating username: {response.text}"
 
-        username = response.json().get("username")
+        username = response.json().get("message", {}).get("username")
         if not username:
             logger.error("Username is empty")
             return f"Error generating username: {response.text}"
 
         with SessionLocal() as session:
-            User.create(username=username, session=session)
+            # check if username already exists
+            existing_user = session.query(User).filter(User.username == username).first()
+            if existing_user:
+                logger.info(f"Username {username} already exists")
+                return f"Username {username} already exists, try to generate another username"
 
-        return username
+        return f"Username {username} generated successfully"
+
+
+@mcp_server.tool(tags=["admin"])
+async def create_user(
+    username: Annotated[str, "Username of the user to create"]
+    ) -> str:
+    """Create a new user with the given username and register in registry."""
+    logger.info(f"Creating user: {username}")
+    with SessionLocal() as session:
+        User.create(username=username, session=session)
+        return f"User {username} created successfully"
 
 
 @mcp_server.tool
