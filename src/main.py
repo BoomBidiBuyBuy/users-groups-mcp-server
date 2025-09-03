@@ -20,7 +20,7 @@ mcp_server = FastMCP(name="users-groups-mcp")
 async def create_group(
     name: Annotated[str, "Name of the group"],
     user_ids: Annotated[
-        Optional[List[int]], "List of Telegram user IDs to add to the group"
+        Optional[List[str]], "List of user IDs to add to the group"
     ] = None,
     description: Annotated[Optional[str], "Description of the group"] = None,
 ) -> str:
@@ -64,17 +64,24 @@ async def delete_group(group_id: Annotated[int, "ID of the group to delete"]) ->
 @mcp_server.tool
 async def add_user_to_group(
     group_id: Annotated[int, "ID of the group"],
-    telegram_id: Annotated[int, "Telegram ID of the user to add"],
+    user_id: Annotated[str, "User ID of the user to add"],
 ) -> str:
     """Add a user to a group."""
-    logger.info(f"Adding user {telegram_id} to group {group_id}")
+    logger.info(f"Adding user {user_id} to group {group_id}")
     try:
         with SessionLocal() as session:
-            success = Group.add_user(group_id, telegram_id, session)
-            if success:
-                return f"User {telegram_id} added to group {group_id} successfully.  Need to attach the 'student' role to the user {telegram_id}"
-            else:
-                return f"Failed to add user {telegram_id} to group {group_id}. Check if both exist."
+            User.create(user_id=user_id, session=session)
+            Group.add_user(group_id, user_id, session)
+
+            response = httpx.post(
+                f"{MCP_REGISTRY_ENDPOINT}/register_user",
+                json={"user_id": user_id, "role_name": "student"},
+            )
+            if response.status_code != 200:
+                session.rollback()
+                return f"Error registering user: {response.text}"
+
+            return f"User {user_id} added to group {group_id} successfully."
     except Exception as e:
         logger.error(f"Error adding user to group: {e}")
         return f"Database error: {str(e)}"
@@ -83,37 +90,37 @@ async def add_user_to_group(
 @mcp_server.tool
 async def remove_user_from_group(
     group_id: Annotated[int, "ID of the group"],
-    telegram_id: Annotated[int, "Telegram ID of the user to remove"],
+    user_id: Annotated[str, "User ID of the user to remove"],
 ) -> str:
     """Remove a user from a group."""
-    logger.info(f"Removing user {telegram_id} from group {group_id}")
+    logger.info(f"Removing user {user_id} from group {group_id}")
     try:
         with SessionLocal() as session:
-            success = Group.remove_user(group_id, telegram_id, session)
+            success = Group.remove_user(group_id, user_id, session)
         if success:
-            return f"User {telegram_id} removed from group {group_id} successfully"
+            return f"User {user_id} removed from group {group_id} successfully"
         else:
-            return f"Failed to remove user {telegram_id} from group {group_id}. Check if both exist and user is in the group."
+            return f"Failed to remove user {user_id} from group {group_id}. Check if both exist and user is in the group."
     except Exception as e:
         logger.error(f"Error removing user from group: {e}")
         return f"Database error: {str(e)}"
 
 
-@mcp_server.tool
+@mcp_server.tool(disabled=True)
 async def create_user(
-    telegram_id: Annotated[int, "Telegram ID of the user to create"],
-    username: Annotated[str, "Telegram username of the user to create"],
+    user_id: Annotated[str, "User ID of the user to create"],
+    username: Annotated[str, "Username of the user to create"],
     first_name: Annotated[Optional[str], "First name of the user to create"] = None,
     last_name: Annotated[Optional[str], "Last name of the user to create"] = None,
 ) -> str:
     """Create a new user in the database."""
     logger.info(
-        f"Creating user: {telegram_id}, username: {username}, first_name: {first_name}, last_name: {last_name}"
+        f"Creating user: {user_id}, username: {username}, first_name: {first_name}, last_name: {last_name}"
     )
     try:
         with SessionLocal() as session:
-            user = User.create(
-                telegram_id=telegram_id,
+            User.create(
+                user_id=user_id,
                 username=username,
                 first_name=first_name,
                 last_name=last_name,
@@ -121,13 +128,13 @@ async def create_user(
             )
 
             response = httpx.post(
-                f"{MCP_REGISTRY_ENDPOINT}/register_user", json={"user_id": telegram_id}
+                f"{MCP_REGISTRY_ENDPOINT}/register_user", json={"user_id": user_id}
             )
             if response.status_code != 200:
                 session.rollback()
                 return f"Error registering user: {response.text}"
 
-        return f"User created successfully."
+        return "User created successfully."
     except ValueError as e:
         return f"Error creating user: {str(e)}"
     except Exception as e:
@@ -135,7 +142,7 @@ async def create_user(
         return f"Database error: {str(e)}"
 
 
-@mcp_server.tool
+@mcp_server.tool(disabled=True)
 async def get_all_groups() -> str:
     """Get a list of all groups in the database."""
     logger.info("Getting all groups")
@@ -158,7 +165,7 @@ async def get_all_groups() -> str:
         return f"Database error: {str(e)}"
 
 
-@mcp_server.tool
+@mcp_server.tool(disabled=True)
 async def get_group_by_id(
     group_id: Annotated[int, "ID of the group to retrieve"],
 ) -> str:
@@ -179,7 +186,7 @@ async def get_group_by_id(
         result += f"- Users ({group['users_count']}):\n"
 
         for user in group["users"]:
-            result += f"  * {user['telegram_id']}"
+            result += f"  * {user['user_id']}"
             if user["username"]:
                 result += f" (@{user['username']})"
             if user["first_name"] or user["last_name"]:
@@ -215,7 +222,7 @@ async def get_group_by_name(
         result += f"- Users ({group['users_count']}):\n"
 
         for user in group["users"]:
-            result += f"  * {user['telegram_id']}"
+            result += f"  * {user['user_id']}"
             if user["username"]:
                 result += f" (@{user['username']})"
             if user["first_name"] or user["last_name"]:
@@ -230,7 +237,7 @@ async def get_group_by_name(
         return f"Database error: {str(e)}"
 
 
-@mcp_server.tool
+@mcp_server.tool(disabled=True)
 async def get_all_users() -> str:
     """Get a list of all users in the database."""
     logger.info("Getting all users")
@@ -242,7 +249,7 @@ async def get_all_users() -> str:
 
         result = "Users in the database:\n"
         for user in users:
-            result += f"- ID: {user['id']}, Telegram ID: {user['telegram_id']}"
+            result += f"- ID: {user['id']}, User ID: {user['user_id']}"
             if user["username"]:
                 result += f", Username: @{user['username']}"
             if user["first_name"] or user["last_name"]:
@@ -255,21 +262,21 @@ async def get_all_users() -> str:
         return f"Database error: {str(e)}"
 
 
-@mcp_server.tool
-async def get_user_by_telegram_id(
-    telegram_id: Annotated[int, "Telegram ID of the user to retrieve"],
+@mcp_server.tool(disabled=True)
+async def get_user_by_user_id(
+    user_id: Annotated[str, "User ID of the user to retrieve"],
 ) -> str:
-    """Get detailed information about a user by their Telegram ID."""
-    logger.info(f"Getting user by Telegram ID: {telegram_id}")
+    """Get detailed information about a user by their user_id."""
+    logger.info(f"Getting user by user_id: {user_id}")
     try:
         with SessionLocal() as session:
-            user = User.get_by_telegram_id(telegram_id, session)
+            user = User.get_by_user_id(user_id, session)
         if not user:
-            return f"User with Telegram ID {telegram_id} not found"
+            return f"User with ID {user_id} not found"
 
         result = "User Details:\n"
         result += f"- ID: {user['id']}\n"
-        result += f"- Telegram ID: {user['telegram_id']}\n"
+        result += f"- User ID: {user['user_id']}\n"
         if user["username"]:
             result += f"- Username: @{user['username']}\n"
         if user["first_name"]:
@@ -288,7 +295,7 @@ async def get_user_by_telegram_id(
         return f"Database error: {str(e)}"
 
     except ValueError:
-        return JSONResponse({"error": "Invalid telegram_id format"}, status_code=400)
+        return JSONResponse({"error": "Invalid user_id format"}, status_code=400)
     except Exception as e:
         logger.error(f"Error in HTTP get_user: {e}")
         return JSONResponse(

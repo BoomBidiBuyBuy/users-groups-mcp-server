@@ -42,7 +42,7 @@ class Group(Base):
         cls,
         name: str,
         session,
-        user_ids: Optional[List[int]] = None,
+        user_ids: Optional[List[str]] = None,
         description: Optional[str] = None,
     ) -> dict:
         """Create a group and optionally attach users by their telegram IDs.
@@ -60,15 +60,13 @@ class Group(Base):
 
         users_count = 0
         if user_ids:
-            for telegram_id in user_ids:
-                user = (
-                    session.query(User).filter(User.telegram_id == telegram_id).first()
-                )
+            for user_id in user_ids:
+                user = session.query(User).filter(User.user_id == user_id).first()
                 if user:
                     group.users.append(user)
                     users_count += 1
                 else:
-                    logger.warning(f"User with telegram_id {telegram_id} not found")
+                    logger.warning(f"User with user_id {user_id} not found")
 
         session.commit()
 
@@ -94,47 +92,47 @@ class Group(Base):
         return True
 
     @classmethod
-    def add_user(cls, group_id: int, telegram_id: int, session) -> bool:
-        """Add a user (by telegram_id) to the group. Returns True on success."""
+    def add_user(cls, group_id: int, user_id: str, session) -> bool:
+        """Add a user (by user_id) to the group. Returns True on success."""
         group = session.query(cls).filter(cls.id == group_id).first()
         if not group:
             logger.warning(f"Group with ID {group_id} not found")
             return False
 
-        user = session.query(User).filter(User.telegram_id == telegram_id).first()
+        user = session.query(User).filter(User.user_id == user_id).first()
         if not user:
-            logger.warning(f"User with telegram_id {telegram_id} not found")
+            logger.warning(f"User with user_id {user_id} not found")
             return False
 
         if user in group.users:
-            logger.info(f"User {telegram_id} is already in group '{group.name}'")
+            logger.info(f"User {user_id} is already in group '{group.name}'")
             return True
 
         group.users.append(user)
         session.commit()
-        logger.info(f"User {telegram_id} added to group '{group.name}'")
+        logger.info(f"User {user_id} added to group '{group.name}'")
         return True
 
     @classmethod
-    def remove_user(cls, group_id: int, telegram_id: int, session) -> bool:
-        """Remove a user (by telegram_id) from the group. Returns True on success."""
+    def remove_user(cls, group_id: int, user_id: str, session) -> bool:
+        """Remove a user (by user_id) from the group. Returns True on success."""
         group = session.query(cls).filter(cls.id == group_id).first()
         if not group:
             logger.warning(f"Group with ID {group_id} not found")
             return False
 
-        user = session.query(User).filter(User.telegram_id == telegram_id).first()
+        user = session.query(User).filter(User.user_id == user_id).first()
         if not user:
-            logger.warning(f"User with telegram_id {telegram_id} not found")
+            logger.warning(f"User with user_id {user_id} not found")
             return False
 
         if user not in group.users:
-            logger.warning(f"User {telegram_id} is not in group '{group.name}'")
+            logger.warning(f"User {user_id} is not in group '{group.name}'")
             return False
 
         group.users.remove(user)
         session.commit()
-        logger.info(f"User {telegram_id} removed from group '{group.name}'")
+        logger.info(f"User {user_id} removed from group '{group.name}'")
         return True
 
     @classmethod
@@ -167,7 +165,7 @@ class Group(Base):
             users.append(
                 {
                     "id": user.id,
-                    "telegram_id": user.telegram_id,
+                    "user_id": user.user_id,
                     "username": user.username,
                     "first_name": user.first_name,
                     "last_name": user.last_name,
@@ -194,7 +192,7 @@ class Group(Base):
             users.append(
                 {
                     "id": user.id,
-                    "telegram_id": user.telegram_id,
+                    "user_id": user.user_id,
                     "username": user.username,
                     "first_name": user.first_name,
                     "last_name": user.last_name,
@@ -217,7 +215,7 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
-    telegram_id = Column(Integer, unique=True, nullable=False, index=True)
+    user_id = Column(String(255), unique=True, nullable=False, index=True)
     username = Column(String(255), nullable=True, index=True)
     first_name = Column(String(255), nullable=True)
     last_name = Column(String(255), nullable=True)
@@ -230,25 +228,25 @@ class User(Base):
     )
 
     def __repr__(self):
-        return f"<User(id={self.id}, telegram_id={self.telegram_id}, username='{self.username}')>"
+        return (
+            f"<User(id={self.id}, user_id={self.user_id}, username='{self.username}')>"
+        )
 
     @classmethod
     def create(
         cls,
-        telegram_id: int,
+        user_id: str,
         session,
         username: Optional[str] = None,
         first_name: Optional[str] = None,
         last_name: Optional[str] = None,
     ) -> "User":
-        """Create a new user. Raises ValueError if telegram_id exists."""
-        existing_user = (
-            session.query(cls).filter(cls.telegram_id == telegram_id).first()
-        )
+        """Create a new user. Raises ValueError if user_id exists."""
+        existing_user = session.query(cls).filter(cls.user_id == user_id).first()
         if existing_user:
-            raise ValueError(f"User with telegram_id {telegram_id} already exists")
+            raise ValueError(f"User with user_id {user_id} already exists")
         user = cls(
-            telegram_id=telegram_id,
+            user_id=user_id,
             username=username,
             first_name=first_name,
             last_name=last_name,
@@ -256,7 +254,7 @@ class User(Base):
         session.add(user)
         session.commit()
         session.refresh(user)
-        logger.info(f"User with telegram_id {telegram_id} created successfully")
+        logger.info(f"User with user_id {user_id} created successfully")
         return user
 
     @classmethod
@@ -268,7 +266,7 @@ class User(Base):
             result.append(
                 {
                     "id": user.id,
-                    "telegram_id": user.telegram_id,
+                    "user_id": user.user_id,
                     "username": user.username,
                     "first_name": user.first_name,
                     "last_name": user.last_name,
@@ -281,9 +279,9 @@ class User(Base):
         return result
 
     @classmethod
-    def get_by_telegram_id(cls, telegram_id: int, session) -> Optional[dict]:
-        """Return user by telegram_id as dict with groups list, or None."""
-        user = session.query(cls).filter(cls.telegram_id == telegram_id).first()
+    def get_by_user_id(cls, user_id: str, session) -> Optional[dict]:
+        """Return user by user_id as dict with groups list, or None."""
+        user = session.query(cls).filter(cls.user_id == user_id).first()
         if not user:
             return None
         groups = []
@@ -297,7 +295,7 @@ class User(Base):
             )
         return {
             "id": user.id,
-            "telegram_id": user.telegram_id,
+            "user_id": user.user_id,
             "username": user.username,
             "first_name": user.first_name,
             "last_name": user.last_name,

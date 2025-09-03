@@ -15,8 +15,8 @@ def test_create_group_with_existing_name(session):
 
 
 def test_create_group_with_users(session):
-    User.create(telegram_id=123456789, username="Test User", session=session)
-    Group.create(name="Test Group", user_ids=[123456789], session=session)
+    User.create(user_id="123456789", username="Test User", session=session)
+    Group.create(name="Test Group", user_ids=["123456789"], session=session)
     assert Group.get_by_name("Test Group", session) is not None
     assert Group.get_by_name("Test Group", session)["users_count"] == 1
 
@@ -28,16 +28,16 @@ def test_delete_group(session):
 
 
 def test_add_user_to_group(session):
-    User.create(telegram_id=123456789, username="Test User", session=session)
+    User.create(user_id="123456789", username="Test User", session=session)
     group = Group.create(name="Test Group", session=session)
-    assert Group.add_user(group["id"], 123456789, session) is True
+    assert Group.add_user(group["id"], "123456789", session) is True
     assert Group.get_by_name("Test Group", session) is not None
 
 
 def test_remove_user_from_group(session):
-    User.create(telegram_id=123456789, username="Test User", session=session)
+    User.create(user_id="123456789", username="Test User", session=session)
     group = Group.create(name="Test Group", session=session)
-    assert Group.add_user(group["id"], 123456789, session) is True
-    assert Group.remove_user(group["id"], 123456789, session) is True
+    assert Group.add_user(group["id"], "123456789", session) is True
+    assert Group.remove_user(group["id"], "123456789", session) is True
     assert Group.get_by_name("Test Group", session) is not None
     assert Group.get_by_name("Test Group", session)["users_count"] == 0
