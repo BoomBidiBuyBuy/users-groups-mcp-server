@@ -27,17 +27,17 @@ async def generate_username() -> str:
             "message": "Generate a kids friendly funny username contains of some animal and adjective, can be fantastic creature",
             "structured_output": True,
             "json_schema": {
-                    "name": "username_record",   # required by OpenAI structured outputs
-                    "strict": True,              
-                    "schema": {
-                        "type": "object",
-                        "additionalProperties": False,
-                        "properties": {
-                            "username": {"type": "string"},
-                        },
-                        "required": ["username"]
-                    }
-            }
+                "name": "username_record",  # required by OpenAI structured outputs
+                "strict": True,
+                "schema": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "username": {"type": "string"},
+                    },
+                    "required": ["username"],
+                },
+            },
         }
         response = await client.post(url, json=payload)
         logger.info(f"Response: {response.json()}")
@@ -53,7 +53,9 @@ async def generate_username() -> str:
 
         with SessionLocal() as session:
             # check if username already exists
-            existing_user = session.query(User).filter(User.username == username).first()
+            existing_user = (
+                session.query(User).filter(User.username == username).first()
+            )
             if existing_user:
                 logger.info(f"Username {username} already exists")
                 return f"Username {username} already exists, try to generate another username"
@@ -63,8 +65,8 @@ async def generate_username() -> str:
 
 @mcp_server.tool(tags=["admin"])
 async def create_user(
-    username: Annotated[str, "Username of the user to create"]
-    ) -> str:
+    username: Annotated[str, "Username of the user to create"],
+) -> str:
     """Create a new user with the given username and register in registry."""
     logger.info(f"Creating user: {username}")
     with SessionLocal() as session:
@@ -159,42 +161,6 @@ async def remove_user_from_group(
             return f"Failed to remove user {user_id} from group {group_id}. Check if both exist and user is in the group."
     except Exception as e:
         logger.error(f"Error removing user from group: {e}")
-        return f"Database error: {str(e)}"
-
-
-@mcp_server.tool(enabled=False)
-async def create_user(
-    user_id: Annotated[str, "User ID of the user to create"],
-    username: Annotated[str, "Username of the user to create"],
-    first_name: Annotated[Optional[str], "First name of the user to create"] = None,
-    last_name: Annotated[Optional[str], "Last name of the user to create"] = None,
-) -> str:
-    """Create a new user in the database."""
-    logger.info(
-        f"Creating user: {user_id}, username: {username}, first_name: {first_name}, last_name: {last_name}"
-    )
-    try:
-        with SessionLocal() as session:
-            User.create(
-                user_id=user_id,
-                username=username,
-                first_name=first_name,
-                last_name=last_name,
-                session=session,
-            )
-
-            response = httpx.post(
-                f"{MCP_REGISTRY_ENDPOINT}/register_user", json={"user_id": user_id}
-            )
-            if response.status_code != 200:
-                session.rollback()
-                return f"Error registering user: {response.text}"
-
-        return "User created successfully."
-    except ValueError as e:
-        return f"Error creating user: {str(e)}"
-    except Exception as e:
-        logger.error(f"Error creating user: {e}")
         return f"Database error: {str(e)}"
 
 
