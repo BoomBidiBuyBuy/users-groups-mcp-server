@@ -250,7 +250,7 @@ async def deactivate_user(
         return f"Database error: {str(e)}"
 
 
-@mcp_server.tool
+@mcp_server.tool(disabled=True)
 async def get_group_by_name(
     name: Annotated[str, "Name of the group to retrieve"],
 ) -> str:
@@ -286,28 +286,39 @@ async def get_group_by_name(
         return f"Database error: {str(e)}"
 
 
-@mcp_server.tool(disabled=True)
-async def get_all_users() -> str:
+@mcp_server.tool(tags=["admin"])
+async def list_users() -> str:
     """Get a list of all users in the database."""
     logger.info("Getting all users")
     try:
         with SessionLocal() as session:
             users = User.get_all(session)
-        if not users:
-            return "No users found in the database"
 
-        result = "Users in the database:\n"
-        for user in users:
-            result += f"- ID: {user['id']}, User ID: {user['user_id']}"
-            if user["username"]:
-                result += f", Username: @{user['username']}"
-            if user["first_name"] or user["last_name"]:
-                result += f", Name: {user['first_name'] or ''} {user['last_name'] or ''}".strip()
-            result += f", Groups: {user['groups_count']}\n"
+            registry_users = []
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(
+                    f"{MCP_REGISTRY_ENDPOINT}/list_users",
+                )
+                if response.status_code != 200:
+                    return f"Error listing users: {response.text}"
+                registry_users = response.json().get("users", [])
 
-        return result
+            result = [
+                {
+                    "user_id": user["user_id"],
+                    "username": user["username"],
+                    "activated": user["activated"],
+                    "role": registry_user.get(user["user_id"], {}).get(
+                        "role", "(no role)"
+                    ),
+                }
+                for user in users
+                for registry_user in registry_users
+            ]
+
+            return result
     except Exception as e:
-        logger.error(f"Error getting users: {e}")
+        logger.error(f"Error listing users: {e}")
         return f"Database error: {str(e)}"
 
 
