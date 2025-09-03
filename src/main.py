@@ -4,7 +4,7 @@ from typing import Annotated, List, Optional
 from user_group_db.models import Group, User
 from storage import SessionLocal, engine, init_db
 
-from envs import MCP_HOST, MCP_PORT, MCP_REGISTRY_ENDPOINT
+from envs import MCP_HOST, MCP_PORT, MCP_REGISTRY_ENDPOINT, AGENT_ENDPOINT
 from fastmcp import FastMCP
 from starlette.responses import JSONResponse
 import httpx
@@ -20,7 +20,15 @@ mcp_server = FastMCP(name="users-groups-mcp")
 async def generate_username() -> str:
     """Generate a friendly username and create a user record in the database."""
     logger.info("Getting all groups")
-    pass
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        url = f"{envs.AGENT_ENDPOINT}/message"
+        payload = {
+            "message": "Generate a friendly username contains two",
+            "structured_output": True,
+            "json_schema": {}
+        }
+        response = await client.post(url, json=payload)
 
 
 @mcp_server.tool
@@ -113,7 +121,7 @@ async def remove_user_from_group(
         return f"Database error: {str(e)}"
 
 
-@mcp_server.tool(disabled=True)
+@mcp_server.tool(enabled=False)
 async def create_user(
     user_id: Annotated[str, "User ID of the user to create"],
     username: Annotated[str, "Username of the user to create"],
@@ -149,7 +157,7 @@ async def create_user(
         return f"Database error: {str(e)}"
 
 
-@mcp_server.tool(disabled=True)
+@mcp_server.tool(enabled=False)
 async def get_all_groups() -> str:
     """Get a list of all groups in the database."""
     logger.info("Getting all groups")
@@ -172,7 +180,7 @@ async def get_all_groups() -> str:
         return f"Database error: {str(e)}"
 
 
-@mcp_server.tool(disabled=True)
+@mcp_server.tool(enabled=False)
 async def get_group_by_id(
     group_id: Annotated[int, "ID of the group to retrieve"],
 ) -> str:
@@ -250,7 +258,7 @@ async def deactivate_user(
         return f"Database error: {str(e)}"
 
 
-@mcp_server.tool(disabled=True)
+@mcp_server.tool(enabled=False)
 async def get_group_by_name(
     name: Annotated[str, "Name of the group to retrieve"],
 ) -> str:
@@ -322,7 +330,7 @@ async def list_users() -> str:
         return f"Database error: {str(e)}"
 
 
-@mcp_server.tool(disabled=True)
+@mcp_server.tool(enabled=False)
 async def get_user_by_user_id(
     user_id: Annotated[str, "User ID of the user to retrieve"],
 ) -> str:

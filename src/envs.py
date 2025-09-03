@@ -20,3 +20,4 @@ MCP_PORT = int(os.environ.get("MCP_PORT", "8000"))
 
 
 MCP_REGISTRY_ENDPOINT = os.environ.get("MCP_REGISTRY_ENDPOINT")
+AGENT_ENDPOINT = os.environ.get("AGENT_ENDPOINT")
