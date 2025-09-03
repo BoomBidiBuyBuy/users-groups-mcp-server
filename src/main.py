@@ -1,4 +1,5 @@
 import logging
+import json
 from typing import Annotated, List, Optional
 
 from user_group_db.models import Group, User
@@ -46,7 +47,10 @@ async def generate_username() -> str:
             logger.error(f"Error generating username: {response.text}")
             return f"Error generating username: {response.text}"
 
-        username = response.json().get("message", {}).get("username")
+        data = response.json()
+        message = json.loads(data.get("message", ""))
+        username = message.get("username")
+
         if not username:
             logger.error("Username is empty")
             return f"Error generating username: {response.text}"
