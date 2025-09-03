@@ -24,7 +24,7 @@ async def generate_username() -> str:
     async with httpx.AsyncClient(timeout=30.0) as client:
         url = f"{AGENT_ENDPOINT}/message"
         payload = {
-            "message": "Generate a friendly username contains two",
+            "message": "Generate a kids friendly funny username contains of some animal and adjective, can be fantastic creature",
             "structured_output": True,
             "json_schema": {
                     "name": "username_record",   # required by OpenAI structured outputs
