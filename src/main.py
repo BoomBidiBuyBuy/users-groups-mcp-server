@@ -19,16 +19,40 @@ mcp_server = FastMCP(name="users-groups-mcp")
 @mcp_server.tool
 async def generate_username() -> str:
     """Generate a friendly username and create a user record in the database."""
-    logger.info("Getting all groups")
+    logger.info("Generating username")
 
     async with httpx.AsyncClient(timeout=30.0) as client:
-        url = f"{envs.AGENT_ENDPOINT}/message"
+        url = f"{AGENT_ENDPOINT}/message"
         payload = {
             "message": "Generate a friendly username contains two",
             "structured_output": True,
-            "json_schema": {}
+            "json_schema": {
+                    "name": "username_record",   # required by OpenAI structured outputs
+                    "strict": True,              
+                    "schema": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "properties": {
+                            "username": {"type": "string"},
+                        },
+                        "required": ["username"]
+                    }
+            }
         }
         response = await client.post(url, json=payload)
+        logger.info(f"Response: {response.json()}")
+
+        if response.status_code != 200:
+            return f"Error generating username: {response.text}"
+
+        username = response.json().get("username")
+        if not username:
+            return f"Error generating username: {response.text}"
+
+        with SessionLocal() as session:
+            User.create(username=username, session=session)
+
+        return username
 
 
 @mcp_server.tool
@@ -324,7 +348,7 @@ async def list_users() -> str:
                 for registry_user in registry_users
             ]
 
-            return result
+            return str(result)
     except Exception as e:
         logger.error(f"Error listing users: {e}")
         return f"Database error: {str(e)}"
