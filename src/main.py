@@ -43,10 +43,12 @@ async def generate_username() -> str:
         logger.info(f"Response: {response.json()}")
 
         if response.status_code != 200:
+            logger.error(f"Error generating username: {response.text}")
             return f"Error generating username: {response.text}"
 
         username = response.json().get("username")
         if not username:
+            logger.error("Username is empty")
             return f"Error generating username: {response.text}"
 
         with SessionLocal() as session:
