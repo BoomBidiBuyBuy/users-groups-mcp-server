@@ -326,13 +326,12 @@ async def list_users() -> str:
                 {
                     "user_id": user["user_id"],
                     "username": user["username"],
-                    "activated": user["activated"],
-                    "role": registry_user.get(user["user_id"], {}).get(
+                    "activated": user.get("is_activated", False),
+                    "role": registry_users.get(user["user_id"], {}).get(
                         "role", "(no role)"
                     ),
                 }
                 for user in users
-                for registry_user in registry_users
             ]
 
             return str(result)
