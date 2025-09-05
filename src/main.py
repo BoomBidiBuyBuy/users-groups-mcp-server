@@ -320,7 +320,7 @@ async def list_users() -> str:
                 )
                 if response.status_code != 200:
                     return f"Error listing users: {response.text}"
-                registry_users = response.json().get("users", [])
+                registry_users = response.json()
 
             result = [
                 {
