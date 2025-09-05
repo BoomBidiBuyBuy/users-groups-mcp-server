@@ -27,8 +27,8 @@ async def http_check_username_exists(request: Request):
         return JSONResponse({"exists": user is not None})
 
 
-@mcp_server.custom_route("/retrieve_user_id_for_username", methods=["POST"])
-async def http_retrieve_user_id_for_username(request: Request):
+@mcp_server.custom_route("/get_user_id", methods=["POST"])
+async def http_get_user_id(request: Request):
     data = await request.json()
     username = data.get("username")
     with SessionLocal() as session:
