@@ -253,9 +253,7 @@ class User(Base):
     ) -> "User":
         """Create a new user. Raises ValueError if user_id exists."""
         if user_id and username:
-            raise ValueError(
-                "Cannot create user with both user_id and username"
-            )
+            raise ValueError("Cannot create user with both user_id and username")
 
         user = cls(
             user_id=user_id,

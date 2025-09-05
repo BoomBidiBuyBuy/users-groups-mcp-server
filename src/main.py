@@ -7,6 +7,7 @@ from storage import SessionLocal, engine, init_db
 
 from envs import MCP_HOST, MCP_PORT, MCP_REGISTRY_ENDPOINT, AGENT_ENDPOINT
 from fastmcp import FastMCP
+from starlette.requests import Request
 from starlette.responses import JSONResponse
 import httpx
 
@@ -15,6 +16,36 @@ logger = logging.getLogger(__name__)
 
 
 mcp_server = FastMCP(name="users-groups-mcp")
+
+
+@mcp_server.custom_route("/check_username_exists", methods=["POST"])
+async def http_check_username_exists(request: Request):
+    data = await request.json()
+    username = data.get("username")
+    with SessionLocal() as session:
+        user = session.query(User).filter(User.username == username).first()
+        return JSONResponse({"exists": user is not None})
+
+
+@mcp_server.custom_route("/retrieve_user_id_for_username", methods=["POST"])
+async def http_retrieve_user_id_for_username(request: Request):
+    data = await request.json()
+    username = data.get("username")
+    with SessionLocal() as session:
+        user = session.query(User).filter(User.username == username).first()
+        return JSONResponse({"user_id": user.user_id})
+
+
+@mcp_server.custom_route("/set_user_id_for_username", methods=["POST"])
+async def http_set_user_id_for_username(request: Request):
+    data = await request.json()
+    username = data.get("username")
+    user_id = data.get("user_id")
+    with SessionLocal() as session:
+        user = session.query(User).filter(User.username == username).first()
+        user.user_id = user_id
+        session.commit()
+        return JSONResponse({"success": True})
 
 
 @mcp_server.tool
