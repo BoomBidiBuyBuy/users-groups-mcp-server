@@ -5,14 +5,10 @@ from typing import Annotated, List, Optional
 from user_group_db.models import Group, User
 from storage import SessionLocal, engine, init_db
 
-from envs import MCP_HOST, MCP_PORT, MCP_REGISTRY_ENDPOINT
+from envs import MCP_HOST, MCP_PORT, MCP_REGISTRY_ENDPOINT, AGENT_ENDPOINT
 from fastmcp import FastMCP
 from starlette.requests import Request
 from starlette.responses import JSONResponse
-
-from fastmcp.client.sampling import SamplingMessage
-from fastmcp.client.context import Context
-
 import httpx
 
 
@@ -64,22 +60,16 @@ async def http_check_user_id_activated(request: Request):
 
 
 @mcp_server.tool
-async def generate_username_and_create_deactivated_user(ctx: Context) -> str:
-    """Generate a friendly username and create a deactivateduser record in the database."""
+async def generate_username() -> str:
+    """Generate a friendly username and create a user record in the database."""
     logger.info("Generating username")
 
-    limit_number_of_attempts = 3
-
-    for _ in range(limit_number_of_attempts):
-        logger.info(
-            f"Generating username attempt {_ + 1} of {limit_number_of_attempts}"
-        )
-
-        message = SamplingMessage(
-            role="user",
-            content="Generate a kids friendly funny username contains of some animal and adjective, can be fantastic creature",
-            structured_output=True,
-            json_schema={
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        url = f"{AGENT_ENDPOINT}/message"
+        payload = {
+            "message": "Generate a kids friendly funny username contains of some animal and adjective, can be fantastic creature",
+            "structured_output": True,
+            "json_schema": {
                 "name": "username_record",  # required by OpenAI structured outputs
                 "strict": True,
                 "schema": {
@@ -91,20 +81,21 @@ async def generate_username_and_create_deactivated_user(ctx: Context) -> str:
                     "required": ["username"],
                 },
             },
-        )
+        }
+        response = await client.post(url, json=payload)
+        logger.info(f"Response: {response.json()}")
 
-        response = await ctx.sample(
-            message,
-            temperature=1.0,
-        )
+        if response.status_code != 200:
+            logger.error(f"Error generating username: {response.text}")
+            return f"Error generating username: {response.text}"
 
-        logger.info(f"Response: {response}")
-
-        username = json.loads(response.text).get("username")
+        data = response.json()
+        message = json.loads(data.get("message", ""))
+        username = message.get("username")
 
         if not username:
-            logger.info("Username is empty")
-            continue
+            logger.error("Username is empty")
+            return f"Error generating username: {response.text}"
 
         with SessionLocal() as session:
             # check if username already exists
@@ -113,13 +104,9 @@ async def generate_username_and_create_deactivated_user(ctx: Context) -> str:
             )
             if existing_user:
                 logger.info(f"Username {username} already exists")
-                continue
+                return f"Username {username} already exists, try to generate another username"
 
-            User.create(username=username, session=session)
-
-        return username
-
-    return f"Failed to generate username after {limit_number_of_attempts} attempts"
+        return f"Username {username} generated successfully"
 
 
 @mcp_server.tool(tags=["admin"])
