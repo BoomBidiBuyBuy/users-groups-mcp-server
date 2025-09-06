@@ -344,6 +344,7 @@ async def list_users() -> str:
         with SessionLocal() as session:
             users = User.get_all(session)
 
+
             registry_users = []
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.get(
@@ -351,7 +352,14 @@ async def list_users() -> str:
                 )
                 if response.status_code != 200:
                     return f"Error listing users: {response.text}"
-                registry_users = response.json()
+                response_users = response.json()
+
+
+                registry_users = {
+                    record["user"]["user_id"] : {"role" : record["user"]["role"] }
+                    for record in response_users.get("users", dict())
+                }
+
 
             result = [
                 {
