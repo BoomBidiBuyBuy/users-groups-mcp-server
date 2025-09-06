@@ -96,60 +96,69 @@ async def generate_username() -> JSONResponse:
     logger.info("Generating username")
 
     async with httpx.AsyncClient(timeout=30.0) as client:
-        url = f"{AGENT_ENDPOINT}/message"
-        payload = {
-            "message": "Generate a kids friendly funny username contains of some animal and adjective, can be fantastic creature",
-            "structured_output": True,
-            "user_id": "service",
-            "role": "service",
-            "json_schema": {
-                "name": "username_record",  # required by OpenAI structured outputs
-                "strict": True,
-                "schema": {
-                    "type": "object",
-                    "additionalProperties": False,
-                    "properties": {
-                        "username": {"type": "string"},
+        limit_attempts = 3
+        attempts = 0
+        while attempts < limit_attempts:
+            url = f"{AGENT_ENDPOINT}/message"
+            payload = {
+                "message": "Generate a kids friendly funny sounding username contains of some animal and adjective",
+                "structured_output": True,
+                "user_id": "service",
+                "role": "service",
+                "json_schema": {
+                    "name": "username_record",  # required by OpenAI structured outputs
+                    "strict": True,
+                    "schema": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "properties": {
+                            "username": {"type": "string"},
+                        },
+                        "required": ["username"],
                     },
-                    "required": ["username"],
                 },
-            },
-        }
-        response = await client.post(url, json=payload)
-        logger.info(f"Response: {response.json()}")
+            }
+            response = await client.post(url, json=payload)
+            logger.info(f"Response: {response.json()}")
 
-        if response.status_code != 200:
-            logger.error(f"Error generating username: {response.text}")
-            return JSONResponse(
-                {"success": False, "error": "Error generating username"},
-                status_code=400,
-            )
-
-        data = response.json()
-        message = json.loads(data.get("message", ""))
-        username = message.get("username")
-
-        if not username:
-            logger.error("Username is empty")
-            return JSONResponse(
-                {"success": False, "error": "Username is empty"},
-                status_code=400,
-            )
-
-        with SessionLocal() as session:
-            # check if username already exists
-            existing_user = (
-                session.query(User).filter(User.username == username).first()
-            )
-            if existing_user:
-                logger.info(f"Username {username} already exists")
+            if response.status_code != 200:
+                logger.error(f"Error generating username: {response.text}")
                 return JSONResponse(
-                    {
-                        "success": False,
-                        "error": "Username already exists",
-                    },
+                    {"success": False, "error": "Error generating username"},
                     status_code=400,
                 )
+
+            data = response.json()
+            message = json.loads(data.get("message", ""))
+            username = message.get("username")
+
+            if not username:
+                logger.error("Username is empty")
+                return JSONResponse(
+                    {"success": False, "error": "Username is empty"},
+                    status_code=400,
+                )
+
+            with SessionLocal() as session:
+                # check if username already exists
+                existing_user = (
+                    session.query(User).filter(User.username == username).first()
+                )
+                if existing_user:
+                    logger.info(f"Username {username} already exists")
+                    attempts += 1
+                    continue
+
+            break
+
+        if attempts == limit_attempts:
+            return JSONResponse(
+                {
+                    "success": False,
+                    "error": "Username already exists",
+                },
+                status_code=400,
+            )
 
         return JSONResponse(
             {
