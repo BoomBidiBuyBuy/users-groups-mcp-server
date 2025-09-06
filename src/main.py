@@ -48,6 +48,17 @@ async def http_set_user_id_for_username(request: Request):
         return JSONResponse({"success": True})
 
 
+@mcp_server.custom_route("/check_user_id_activated", methods=["POST"])
+async def http_check_user_id_activated(request: Request):
+    logger.info("Checking user ID activated")
+    data = await request.json()
+    user_id = data.get("user_id")
+    with SessionLocal() as session:
+        user = session.query(User).filter(User.user_id == user_id).first()
+        logger.info(f"User: {user}")
+        return JSONResponse({"activated": user.is_activated if user else False})
+
+
 @mcp_server.tool
 async def generate_username() -> str:
     """Generate a friendly username and create a user record in the database."""
@@ -344,6 +355,7 @@ async def list_users() -> str:
         with SessionLocal() as session:
             users = User.get_all(session)
 
+            logger.info(f"Number of users: {len(users)}")
 
             registry_users = []
             async with httpx.AsyncClient(timeout=30.0) as client:
@@ -354,12 +366,12 @@ async def list_users() -> str:
                     return f"Error listing users: {response.text}"
                 response_users = response.json()
 
-
                 registry_users = {
-                    record["user"]["user_id"] : {"role" : record["user"]["role"] }
+                    record["user"]["user_id"]: {"role": record["user"]["role"]}
                     for record in response_users.get("users", dict())
                 }
 
+                logger.info(f"Number of registry users: {len(registry_users)}")
 
             result = [
                 {

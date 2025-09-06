@@ -239,7 +239,7 @@ class User(Base):
 
     def __repr__(self):
         return (
-            f"<User(id={self.id}, user_id={self.user_id}, username='{self.username}')>"
+            f"<User(id={self.id}, user_id={self.user_id}, username='{self.username}', is_activated={self.is_activated})>"
         )
 
     @classmethod
