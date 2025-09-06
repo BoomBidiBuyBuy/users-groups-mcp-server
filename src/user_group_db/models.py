@@ -246,6 +246,7 @@ class User(Base):
         session,
         user_id: Optional[str] = None,
         username: Optional[str] = None,
+        is_activated: Optional[bool] = False,
         first_name: Optional[str] = None,
         last_name: Optional[str] = None,
     ) -> "User":
@@ -258,6 +259,7 @@ class User(Base):
             username=username,
             first_name=first_name,
             last_name=last_name,
+            is_activated=is_activated,
         )
         session.add(user)
         session.commit()
