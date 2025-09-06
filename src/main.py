@@ -77,11 +77,13 @@ async def create_new_teacher_account() -> str:
     response = await generate_username()
     logger.info(f"Response from generate_username: {response}")
 
-    if not response.get("success"):
-        logger.error(f"Error creating new teacher account: {response.get('error')}")
-        return response.get("error")
+    body = json.loads(response.body.decode("utf-8"))
 
-    username = response.get("username")
+    if response.status_code != 200:
+        logger.error(f"Error creating new teacher account: {body.get('error')}")
+        return body.get("error")
+
+    username = body.get("username")
 
     with SessionLocal() as session:
         User.create(username=username, is_activated=True, session=session)
@@ -89,7 +91,7 @@ async def create_new_teacher_account() -> str:
 
 
 @mcp_server.custom_route("/generate_username", methods=["GET"])
-async def generate_username() -> dict:
+async def generate_username() -> JSONResponse:
     """Generate a friendly username and create a user record in the database."""
     logger.info("Generating username")
 
@@ -119,7 +121,8 @@ async def generate_username() -> dict:
         if response.status_code != 200:
             logger.error(f"Error generating username: {response.text}")
             return JSONResponse(
-                {"success": False, "error": "Error generating username"}
+                {"success": False, "error": "Error generating username"},
+                status_code=400,
             )
 
         data = response.json()
@@ -128,7 +131,10 @@ async def generate_username() -> dict:
 
         if not username:
             logger.error("Username is empty")
-            return JSONResponse({"success": False, "error": "Username is empty"})
+            return JSONResponse(
+                {"success": False, "error": "Username is empty"},
+                status_code=400,
+            )
 
         with SessionLocal() as session:
             # check if username already exists
@@ -138,10 +144,20 @@ async def generate_username() -> dict:
             if existing_user:
                 logger.info(f"Username {username} already exists")
                 return JSONResponse(
-                    {"success": False, "error": "Username already exists"}
+                    {
+                        "success": False,
+                        "error": "Username already exists",
+                    },
+                    status_code=400,
                 )
 
-        return JSONResponse({"username": username, "success": True})
+        return JSONResponse(
+            {
+                "username": username,
+                "success": True,
+            },
+            status_code=200,
+        )
 
 
 @mcp_server.tool(tags=["admin"])
