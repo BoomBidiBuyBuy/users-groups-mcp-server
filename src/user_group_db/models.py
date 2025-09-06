@@ -264,7 +264,9 @@ class User(Base):
         session.add(user)
         session.commit()
         session.refresh(user)
-        logger.info(f"User with user_id {user_id} created successfully")
+        logger.info(
+            f"User with user_id '{user_id}' and username '{username}' created successfully"
+        )
         return user
 
     @classmethod

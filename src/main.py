@@ -12,6 +12,9 @@ from starlette.responses import JSONResponse
 import httpx
 
 
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
+)
 logger = logging.getLogger(__name__)
 
 
@@ -44,7 +47,7 @@ async def http_get_user_id(request: Request):
 async def http_set_user_id_for_username(request: Request):
     data = await request.json()
     username = data.get("username")
-    user_id = data.get("user_id")   
+    user_id = data.get("user_id")
     logger.info(f"Setting user ID for username: {username} to {user_id}")
     with SessionLocal() as session:
         user = session.query(User).filter(User.username == username).first()
@@ -69,15 +72,24 @@ async def http_check_user_id_activated(request: Request):
 @mcp_server.tool
 async def create_new_teacher_account() -> str:
     """Create a new teacher activated account."""
+    logger.info("Creating new teacher account")
 
-    username = await generate_username()
+    response = await generate_username()
+    logger.info(f"Response from generate_username: {response}")
+
+    if not response.get("success"):
+        logger.error(f"Error creating new teacher account: {response.get('error')}")
+        return response.get("error")
+
+    username = response.get("username")
+
     with SessionLocal() as session:
         User.create(username=username, is_activated=True, session=session)
         return f"Teacher account created successfully with username: {username}"
 
 
 @mcp_server.custom_route("/generate_username", methods=["GET"])
-async def generate_username() -> str:
+async def generate_username() -> dict:
     """Generate a friendly username and create a user record in the database."""
     logger.info("Generating username")
 
@@ -106,7 +118,9 @@ async def generate_username() -> str:
 
         if response.status_code != 200:
             logger.error(f"Error generating username: {response.text}")
-            return f"Error generating username: {response.text}"
+            return JSONResponse(
+                {"success": False, "error": "Error generating username"}
+            )
 
         data = response.json()
         message = json.loads(data.get("message", ""))
@@ -114,7 +128,7 @@ async def generate_username() -> str:
 
         if not username:
             logger.error("Username is empty")
-            return f"Error generating username: {response.text}"
+            return JSONResponse({"success": False, "error": "Username is empty"})
 
         with SessionLocal() as session:
             # check if username already exists
@@ -123,9 +137,11 @@ async def generate_username() -> str:
             )
             if existing_user:
                 logger.info(f"Username {username} already exists")
-                return f"Username {username} already exists, try to generate another username"
+                return JSONResponse(
+                    {"success": False, "error": "Username already exists"}
+                )
 
-        return f"Username {username} generated successfully"
+        return JSONResponse({"username": username, "success": True})
 
 
 @mcp_server.tool(tags=["admin"])
