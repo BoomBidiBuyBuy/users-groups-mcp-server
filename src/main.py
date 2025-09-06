@@ -22,8 +22,10 @@ mcp_server = FastMCP(name="users-groups-mcp")
 async def http_check_username_exists(request: Request):
     data = await request.json()
     username = data.get("username")
+    logger.info(f"Checking username exists: {username}")
     with SessionLocal() as session:
         user = session.query(User).filter(User.username == username).first()
+        logger.info(f"User: {user}")
         return JSONResponse({"exists": user is not None})
 
 
@@ -31,8 +33,10 @@ async def http_check_username_exists(request: Request):
 async def http_get_user_id(request: Request):
     data = await request.json()
     username = data.get("username")
+    logger.info(f"Getting user ID for username: {username}")
     with SessionLocal() as session:
         user = session.query(User).filter(User.username == username).first()
+        logger.info(f"User: {user}")
         return JSONResponse({"user_id": user.user_id})
 
 
@@ -40,11 +44,13 @@ async def http_get_user_id(request: Request):
 async def http_set_user_id_for_username(request: Request):
     data = await request.json()
     username = data.get("username")
-    user_id = data.get("user_id")
+    user_id = data.get("user_id")   
+    logger.info(f"Setting user ID for username: {username} to {user_id}")
     with SessionLocal() as session:
         user = session.query(User).filter(User.username == username).first()
         user.user_id = user_id
         session.commit()
+        logger.info(f"User: {user}")
         return JSONResponse({"success": True})
 
 
@@ -53,6 +59,7 @@ async def http_check_user_id_activated(request: Request):
     logger.info("Checking user ID activated")
     data = await request.json()
     user_id = data.get("user_id")
+    logger.info(f"Checking user ID activated: {user_id}")
     with SessionLocal() as session:
         user = session.query(User).filter(User.user_id == user_id).first()
         logger.info(f"User: {user}")
