@@ -60,6 +60,16 @@ async def http_check_user_id_activated(request: Request):
 
 
 @mcp_server.tool
+async def create_new_teacher_account() -> str:
+    """Create a new teacher activated account."""
+
+    username = await generate_username()
+    with SessionLocal() as session:
+        User.create(username=username, is_activated=True, session=session)
+        return f"Teacher account created successfully with username: {username}"
+
+
+@mcp_server.custom_route("/generate_username", methods=["GET"])
 async def generate_username() -> str:
     """Generate a friendly username and create a user record in the database."""
     logger.info("Generating username")
@@ -69,6 +79,8 @@ async def generate_username() -> str:
         payload = {
             "message": "Generate a kids friendly funny username contains of some animal and adjective, can be fantastic creature",
             "structured_output": True,
+            "user_id": "service",
+            "role": "service",
             "json_schema": {
                 "name": "username_record",  # required by OpenAI structured outputs
                 "strict": True,
