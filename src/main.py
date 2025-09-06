@@ -13,12 +13,24 @@ import httpx
 
 
 logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
+    format="%(asctime)s - %(name)s - %(levelname)s - %(thread)d - %(message)s",
+    level=logging.INFO,
 )
 logger = logging.getLogger(__name__)
 
 
 mcp_server = FastMCP(name="users-groups-mcp")
+
+
+@mcp_server.custom_route("/get_username_by_user_id", methods=["POST"])
+async def http_get_username_by_user_id(request: Request):
+    data = await request.json()
+    user_id = data.get("user_id")
+    logger.info(f"Getting username for user ID: {user_id}")
+    with SessionLocal() as session:
+        user = session.query(User).filter(User.user_id == user_id).first()
+        logger.info(f"User: {user}")
+        return JSONResponse({"username": user.username if user else None})
 
 
 @mcp_server.custom_route("/check_username_exists", methods=["POST"])
@@ -88,6 +100,35 @@ async def create_new_teacher_account() -> str:
     with SessionLocal() as session:
         User.create(username=username, is_activated=True, session=session)
         return f"Teacher account created successfully with username: {username}"
+
+
+@mcp_server.custom_route("/create_student_account", methods=["POST"])
+async def http_create_student_account(request: Request):
+    data = await request.json()
+    student_user_id = data.get("user_id")
+
+    response = await generate_username()
+    logger.info(f"Response from generate_username: {response}")
+
+    body = json.loads(response.body.decode("utf-8"))
+
+    if response.status_code != 200:
+        logger.error(f"Error creating new student account: {body.get('error')}")
+        return JSONResponse(
+            {"success": False, "error": body.get("error")}, status_code=400
+        )
+
+    username = body.get("username")
+
+    with SessionLocal() as session:
+        # a teacher activates the student account adding into the group
+        User.create(
+            username=username,
+            is_activated=False,
+            user_id=student_user_id,
+            session=session,
+        )
+        return JSONResponse({"success": True, "username": username}, status_code=200)
 
 
 @mcp_server.custom_route("/generate_username", methods=["GET"])
