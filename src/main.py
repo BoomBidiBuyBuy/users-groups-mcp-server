@@ -337,6 +337,39 @@ async def add_user_to_group(
 
 
 @mcp_server.tool(tags=["teacher"])
+async def get_students_in_group(
+    teacher_user_id: Annotated[str, "User ID of the teacher owner of the group"],
+    group_id: Annotated[int, "ID of the group to retrieve"],
+) -> str:
+    """Get a list of all students in a group."""
+    logger.info(f"Getting all students in group {group_id}")
+    with SessionLocal() as session:
+        is_allowed = await check_teacher_owner_of_group(group_id, teacher_user_id)
+        if not is_allowed:
+            return f"Group with ID {group_id} is not owned by {teacher_user_id}"
+
+        students = (
+            session.query(User)
+            .join(User.groups)
+            .filter(Group.id == group_id)
+            .filter(User.is_activated)
+            .all()
+        )
+        if not students:
+            return "No students found in the group"
+
+        result = [
+            {
+                "user_id": student["user_id"],
+                "username": student["username"],
+            }
+            for student in students
+        ]
+
+        return str(result)
+
+
+@mcp_server.tool(tags=["teacher"])
 async def remove_user_from_group(
     teacher_user_id: Annotated[str, "User ID of the teacher owner of the group"],
     group_id: Annotated[int, "ID of the group"],
