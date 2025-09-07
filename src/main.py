@@ -212,6 +212,40 @@ async def generate_username() -> JSONResponse:
         )
 
 
+@mcp_server.tool(tags=["teacher"])
+async def call_agent_for_a_student(
+    student_username: Annotated[str, "Username of the student"],
+    prompt: Annotated[str, "Message to the student"],
+) -> str:
+    """Call an LLM agent behalf of a student to do a task.
+    It's helpful when a teacher wants to do a task for a student.
+    It will use student's knowledge and context to do the task.
+    """
+    logger.info(f"Calling agent for student: {student_username}, message: {prompt}")
+
+    with SessionLocal() as session:
+        student = session.query(User).filter(User.username == student_username).first()
+        if not student:
+            return f"Student with username {student_username} not found"
+        student_user_id = student.user_id
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        url = f"{AGENT_ENDPOINT}/message"
+        payload = {
+            "message": prompt,
+            "user_id": student_user_id,
+            "role": "student",
+        }
+        response = await client.post(url, json=payload)
+
+        if response.status_code != 200:
+            return f"Error calling agent: {response.text}"
+
+        data = response.json()
+        message = json.loads(data.get("message", ""))
+        return message.get("message")
+
+
 @mcp_server.tool(tags=["admin", "debug"])
 async def create_user(
     user_id: Annotated[str, "User ID of the user to create"],
@@ -341,7 +375,9 @@ async def get_students_in_group(
     teacher_user_id: Annotated[str, "User ID of the teacher owner of the group"],
     group_id: Annotated[int, "ID of the group to retrieve"],
 ) -> str:
-    """Get a list of all students in a group."""
+    """Get a list of all students in a group.
+    It returns only activated students.
+    """
     logger.info(f"Getting all students in group {group_id}")
     with SessionLocal() as session:
         is_allowed = await check_teacher_owner_of_group(group_id, teacher_user_id)
@@ -360,10 +396,10 @@ async def get_students_in_group(
 
         result = [
             {
-                "user_id": student["user_id"],
-                "username": student["username"],
+                "username": student.username,
+                "user_id": student.user_id
             }
-            for student in students
+            for student in students for student in students
         ]
 
         return str(result)
