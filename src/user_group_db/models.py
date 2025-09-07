@@ -57,7 +57,7 @@ class Group(Base):
         session,
         usernames: Optional[List[str]] = None,
         description: Optional[str] = None,
-        owner_id: Optional[str] = None,
+        owner_user_id: Optional[str] = None,
     ) -> dict:
         """Create a group and optionally attach users by their telegram IDs.
 
@@ -70,10 +70,10 @@ class Group(Base):
 
         # Find owner if owner_id is provided
         owner = None
-        if owner_id:
-            owner = session.query(User).filter(User.user_id == owner_id).first()
+        if owner_user_id:
+            owner = session.query(User).filter(User.user_id == owner_user_id).first()
             if not owner:
-                raise ValueError(f"Owner with user_id '{owner_id}' not found")
+                raise ValueError(f"Owner with user_id '{owner_user_id}' not found")
 
         group = cls(
             name=name, description=description, owner_id=owner.id if owner else None
