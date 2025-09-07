@@ -163,7 +163,7 @@ class Group(Base):
     def get_groups(cls, session, owner_user_id: Optional[str] = None) -> List[dict]:
         """Return list of all groups as dicts with users_count."""
         if owner_user_id:
-            groups = session.query(cls).filter(cls.owner.user_id == owner_user_id).all()
+            groups = session.query(cls).join(cls.owner).filter(User.user_id == owner_user_id).all()
         else:
             groups = session.query(cls).all()
         result: List[dict] = []
