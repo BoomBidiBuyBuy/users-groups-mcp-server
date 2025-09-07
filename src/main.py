@@ -250,9 +250,10 @@ async def call_agent_for_a_student(
 async def create_user(
     user_id: Annotated[str, "User ID of the user to create"],
     username: Annotated[str, "Username of the user to create"],
+    role: Annotated[str, "Role of the user to create"],
     is_activated: Annotated[bool, "Whether the user is activated"],
 ) -> str:
-    """Create a new user with the given username and register in registry."""
+    """Create a new user with the given username and register in registry MCP."""
     logger.info(
         f"Creating user: {username}, user_id: {user_id}, is_activated: {is_activated}"
     )
@@ -263,6 +264,14 @@ async def create_user(
             user_id=user_id,
             is_activated=is_activated,
         )
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.post(
+            f"{MCP_REGISTRY_ENDPOINT}/register_user",
+            json={"user_id": user_id, "role_name": role},
+        )
+        if response.status_code != 200:
+            return f"Error registering user: {response.text}"
         return f"User {username} created successfully"
 
 
@@ -395,11 +404,9 @@ async def get_students_in_group(
             return "No students found in the group"
 
         result = [
-            {
-                "username": student.username,
-                "user_id": student.user_id
-            }
-            for student in students for student in students
+            {"username": student.username, "user_id": student.user_id}
+            for student in students
+            for student in students
         ]
 
         return str(result)
