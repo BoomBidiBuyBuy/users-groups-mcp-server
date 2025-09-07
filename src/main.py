@@ -81,7 +81,7 @@ async def http_check_user_id_activated(request: Request):
         return JSONResponse({"activated": user.is_activated if user else False})
 
 
-@mcp_server.tool
+@mcp_server.tool(tags=["admin"])
 async def create_new_teacher_account() -> str:
     """Create a new teacher activated account."""
     logger.info("Creating new teacher account")
@@ -133,7 +133,9 @@ async def http_create_student_account(request: Request):
 
 @mcp_server.custom_route("/generate_username", methods=["GET"])
 async def generate_username() -> JSONResponse:
-    """Generate a friendly username and create a user record in the database."""
+    """Generate a friendly username and create a user record in the database.
+    It's used to create a teacher and a student accounts.
+    """
     logger.info("Generating username")
 
     async with httpx.AsyncClient(timeout=30.0) as client:
@@ -210,38 +212,58 @@ async def generate_username() -> JSONResponse:
         )
 
 
-@mcp_server.tool(tags=["admin"])
+@mcp_server.tool(tags=["admin", "debug"])
 async def create_user(
+    user_id: Annotated[str, "User ID of the user to create"],
     username: Annotated[str, "Username of the user to create"],
+    is_activated: Annotated[bool, "Whether the user is activated"],
 ) -> str:
     """Create a new user with the given username and register in registry."""
-    logger.info(f"Creating user: {username}")
+    logger.info(
+        f"Creating user: {username}, user_id: {user_id}, is_activated: {is_activated}"
+    )
     with SessionLocal() as session:
-        User.create(username=username, session=session)
+        User.create(
+            username=username,
+            session=session,
+            user_id=user_id,
+            is_activated=is_activated,
+        )
         return f"User {username} created successfully"
 
 
-@mcp_server.tool
+@mcp_server.tool(tags=["teacher"])
 async def create_group(
     name: Annotated[str, "Name of the group"],
-    user_ids: Annotated[
-        Optional[List[str]], "List of user IDs to add to the group"
+    description: Annotated[Optional[str], "Description of the group"],
+    teacher_user_id: Annotated[str, "User ID of the teacher owner of the group"],
+    students_usernames: Annotated[
+        Optional[List[str]], "List of student usernames to add to the group"
     ] = None,
-    description: Annotated[Optional[str], "Description of the group"] = None,
 ) -> str:
     """Create a new group with optional users and description."""
     logger.info(
-        f"Creating group: {name}, user_ids: {user_ids}, description: {description}"
+        f"Creating group: {name}, description: {description}, owner: {teacher_user_id}"
     )
+    if students_usernames:
+        logger.info(f"Students usernames: {students_usernames}")
+    else:
+        logger.info("No students usernames add to the group")
 
     try:
         with SessionLocal() as session:
             group = Group.create(
-                name=name, user_ids=user_ids, description=description, session=session
+                name=name,
+                usernames=students_usernames,
+                description=description,
+                session=session,
+                owner_user_id=teacher_user_id,
             )
             result = f"Group '{name}' created successfully with ID: {group['id']}"
-            if user_ids:
-                result += f"\nAdded {len(user_ids)} users to the group"
+            if students_usernames:
+                result += f"\nAdded {group['added_users_count']} users to the group"
+                if len(students_usernames) > group["added_users_count"]:
+                    result += "\nWarning: Not all students were added to the group"
             return result
     except ValueError as e:
         return f"Error creating group: {str(e)}"
@@ -250,12 +272,31 @@ async def create_group(
         return f"Database error: {str(e)}"
 
 
-@mcp_server.tool
-async def delete_group(group_id: Annotated[int, "ID of the group to delete"]) -> str:
+async def check_teacher_owner_of_group(group_id: int, teacher_user_id: str) -> bool:
+    with SessionLocal() as session:
+        group = session.query(Group).filter(Group.id == group_id).first()
+        if not group:
+            logger.error(f"Group with ID {group_id} not found")
+            return False
+        if group.owner.user_id != teacher_user_id:
+            logger.error(f"Group with ID {group_id} is not owned by {teacher_user_id}")
+            return False
+        return True
+
+
+@mcp_server.tool(tags=["teacher"])
+async def delete_group(
+    group_id: Annotated[int, "ID of the group to delete"],
+    teacher_user_id: Annotated[str, "User ID of the teacher owner of the group"],
+) -> str:
     """Delete a group by its ID."""
-    logger.info(f"Deleting group: {group_id}")
+    logger.info(f"Deleting group: {group_id} owned by {teacher_user_id}")
     try:
         with SessionLocal() as session:
+            is_allowed = await check_teacher_owner_of_group(group_id, teacher_user_id)
+            if not is_allowed:
+                return f"Group with ID {group_id} is not owned by {teacher_user_id}"
+
             success = Group.delete_by_id(group_id, session)
         if success:
             return f"Group with ID {group_id} deleted successfully"
@@ -266,67 +307,92 @@ async def delete_group(group_id: Annotated[int, "ID of the group to delete"]) ->
         return f"Database error: {str(e)}"
 
 
-@mcp_server.tool
+@mcp_server.tool(tags=["teacher"])
 async def add_user_to_group(
+    teacher_user_id: Annotated[str, "User ID of the teacher owner of the group"],
     group_id: Annotated[int, "ID of the group"],
-    user_id: Annotated[str, "User ID of the user to add"],
+    username: Annotated[str, "Username of the user to add"],
 ) -> str:
     """Add a user to a group."""
-    logger.info(f"Adding user {user_id} to group {group_id}")
+    logger.info(f"Adding user {username} to group {group_id}")
     try:
         with SessionLocal() as session:
-            User.create(user_id=user_id, session=session)
-            Group.add_user(group_id, user_id, session)
+            # check that the teacher can do this action
+            is_allowed = await check_teacher_owner_of_group(group_id, teacher_user_id)
+            if not is_allowed:
+                return f"Group with ID {group_id} is not owned by {teacher_user_id}"
 
-            response = httpx.post(
-                f"{MCP_REGISTRY_ENDPOINT}/register_user",
-                json={"user_id": user_id, "role_name": "student"},
+            user = session.query(User).filter(User.username == username).first()
+            if not user:
+                return f"User with username {username} not found"
+            Group.add_user(group_id, user.user_id, session)
+            session.query(User).filter(User.username == username).update(
+                {"is_activated": True}
             )
-            if response.status_code != 200:
-                session.rollback()
-                return f"Error registering user: {response.text}"
 
-            return f"User {user_id} added to group {group_id} successfully."
+            return f"User {username} added to group {group_id} successfully."
     except Exception as e:
         logger.error(f"Error adding user to group: {e}")
         return f"Database error: {str(e)}"
 
 
-@mcp_server.tool
+@mcp_server.tool(tags=["teacher"])
 async def remove_user_from_group(
+    teacher_user_id: Annotated[str, "User ID of the teacher owner of the group"],
     group_id: Annotated[int, "ID of the group"],
-    user_id: Annotated[str, "User ID of the user to remove"],
+    username: Annotated[str, "Username of the user to remove"],
 ) -> str:
     """Remove a user from a group."""
-    logger.info(f"Removing user {user_id} from group {group_id}")
+    logger.info(
+        f"Removing user {username} from group {group_id} owned by {teacher_user_id}"
+    )
     try:
         with SessionLocal() as session:
-            success = Group.remove_user(group_id, user_id, session)
+            is_allowed = await check_teacher_owner_of_group(group_id, teacher_user_id)
+            if not is_allowed:
+                return f"Group with ID {group_id} is not owned by {teacher_user_id}"
+
+            success = Group.remove_user(group_id, username, session, teacher_user_id)
         if success:
-            return f"User {user_id} removed from group {group_id} successfully"
+            user = session.query(User).filter(User.username == username).first()
+            # if there is no more groups for the user, deactivate the user
+            if len(user.groups) == 0:
+                session.query(User).filter(User.username == username).update(
+                    {"is_activated": False}
+                )
+                logger.info(f"User {username} deactivated successfully")
+
+            return f"User {username} removed from group {group_id} successfully"
         else:
-            return f"Failed to remove user {user_id} from group {group_id}. Check if both exist and user is in the group."
+            return f"Failed to remove user {username} from group {group_id}. Check if both exist and user is in the group."
     except Exception as e:
         logger.error(f"Error removing user from group: {e}")
         return f"Database error: {str(e)}"
 
 
-@mcp_server.tool(enabled=False)
-async def get_all_groups() -> str:
+@mcp_server.tool(tags=["teacher"])
+async def get_available_groups(
+    teacher_user_id: Annotated[str, "User ID of the teacher owner of the group"],
+) -> str:
     """Get a list of all groups in the database."""
-    logger.info("Getting all groups")
+    logger.info(f"Getting all groups owned by {teacher_user_id}")
     try:
         with SessionLocal() as session:
-            groups = Group.get_all(session)
+            groups = Group.get_groups(session, teacher_user_id)
         if not groups:
             return "No groups found in the database"
 
-        result = "Groups in the database:\n"
-        for group in groups:
-            result += f"- ID: {group['id']}, Name: '{group['name']}'"
-            if group["description"]:
-                result += f", Description: '{group['description']}'"
-            result += f", Users: {group['users_count']}\n"
+        result = [
+            {
+                "id": group["id"],
+                "name": group["name"],
+                "description": group["description"],
+                "users_count": group["users_count"],
+            }
+            for group in groups
+        ]
+
+        result = "Groups in the database owned by {teacher_user_id}:\n" + str(result)
 
         return result
     except Exception as e:

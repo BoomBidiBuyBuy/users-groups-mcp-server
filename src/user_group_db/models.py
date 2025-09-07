@@ -35,6 +35,7 @@ class Group(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), nullable=False, index=True)
     description = Column(Text, nullable=True)
+    owner_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
@@ -42,6 +43,9 @@ class Group(Base):
     users = relationship(
         "User", secondary=group_user_association, back_populates="groups"
     )
+
+    # Relationship with owner
+    owner = relationship("User", foreign_keys=[owner_id], backref="owned_groups")
 
     def __repr__(self):
         return f"<Group(id={self.id}, name='{self.name}')>"
@@ -51,8 +55,9 @@ class Group(Base):
         cls,
         name: str,
         session,
-        user_ids: Optional[List[str]] = None,
+        usernames: Optional[List[str]] = None,
         description: Optional[str] = None,
+        owner_id: Optional[str] = None,
     ) -> dict:
         """Create a group and optionally attach users by their telegram IDs.
 
@@ -63,19 +68,29 @@ class Group(Base):
         if existing_group:
             raise ValueError(f"Group with name '{name}' already exists")
 
-        group = cls(name=name, description=description)
+        # Find owner if owner_id is provided
+        owner = None
+        if owner_id:
+            owner = session.query(User).filter(User.user_id == owner_id).first()
+            if not owner:
+                raise ValueError(f"Owner with user_id '{owner_id}' not found")
+
+        group = cls(
+            name=name, description=description, owner_id=owner.id if owner else None
+        )
         session.add(group)
         session.flush()
 
         users_count = 0
-        if user_ids:
-            for user_id in user_ids:
-                user = session.query(User).filter(User.user_id == user_id).first()
+        if usernames:
+            for username in usernames:
+                user = session.query(User).filter(User.username == username).first()
                 if user:
                     group.users.append(user)
+                    user.is_activated = True
                     users_count += 1
                 else:
-                    logger.warning(f"User with user_id {user_id} not found")
+                    logger.warning(f"User with username {username} not found")
 
         session.commit()
 
@@ -84,7 +99,7 @@ class Group(Base):
             "id": group.id,
             "name": group.name,
             "description": group.description,
-            "users_count": users_count,
+            "added_users_count": users_count,
             "created_at": group.created_at,
         }
 
@@ -145,16 +160,26 @@ class Group(Base):
         return True
 
     @classmethod
-    def get_all(cls, session) -> List[dict]:
+    def get_groups(cls, session, owner_user_id: Optional[str] = None) -> List[dict]:
         """Return list of all groups as dicts with users_count."""
-        groups = session.query(cls).all()
+        if owner_user_id:
+            groups = session.query(cls).filter(cls.owner.user_id == owner_user_id).all()
+        else:
+            groups = session.query(cls).all()
         result: List[dict] = []
         for group in groups:
+            owner_info = None
+            if group.owner:
+                owner_info = {
+                    "user_id": group.owner.user_id,
+                    "username": group.owner.username,
+                }
             result.append(
                 {
                     "id": group.id,
                     "name": group.name,
                     "description": group.description,
+                    "owner": owner_info,
                     "created_at": group.created_at,
                     "updated_at": group.updated_at,
                     "users_count": len(group.users),
@@ -180,10 +205,18 @@ class Group(Base):
                     "last_name": user.last_name,
                 }
             )
+        owner_info = None
+        if group.owner:
+            owner_info = {
+                "user_id": group.owner.user_id,
+                "username": group.owner.username,
+            }
+
         return {
             "id": group.id,
             "name": group.name,
             "description": group.description,
+            "owner": owner_info,
             "users": users,
             "users_count": len(users),
             "created_at": group.created_at,
@@ -207,10 +240,18 @@ class Group(Base):
                     "last_name": user.last_name,
                 }
             )
+        owner_info = None
+        if group.owner:
+            owner_info = {
+                "user_id": group.owner.user_id,
+                "username": group.owner.username,
+            }
+
         return {
             "id": group.id,
             "name": group.name,
             "description": group.description,
+            "owner": owner_info,
             "users": users,
             "users_count": len(users),
             "created_at": group.created_at,
