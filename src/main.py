@@ -213,15 +213,19 @@ async def generate_username() -> JSONResponse:
 
 
 @mcp_server.tool(tags=["teacher"])
-async def call_agent_for_a_student(
+async def create_an_excercise_for_a_student(
     student_username: Annotated[str, "Username of the student"],
-    prompt: Annotated[str, "Message to the student"],
+    excercise_creation_instruction: Annotated[
+        str, "Brief instruction from a teacher for an excercise creation"
+    ],
 ) -> str:
-    """Call an LLM agent behalf of a student to do a task.
-    It's helpful when a teacher wants to do a task for a student.
-    It will use student's knowledge and context to do the task.
+    """Asks an agent to create an excercise for a student,
+    use student's knowledge and context to do the task.
+    Should be asked by a teacher to a student.
     """
-    logger.info(f"Calling agent for student: {student_username}, message: {prompt}")
+    logger.info(
+        f"Calling an agent to create an excercise for student: {student_username}, message: {excercise_creation_instruction}"
+    )
 
     with SessionLocal() as session:
         student = session.query(User).filter(User.username == student_username).first()
@@ -232,7 +236,7 @@ async def call_agent_for_a_student(
     async with httpx.AsyncClient(timeout=30.0) as client:
         url = f"{AGENT_ENDPOINT}/message"
         payload = {
-            "message": prompt,
+            "message": excercise_creation_instruction,
             "user_id": student_user_id,
             "role": "student",
         }
