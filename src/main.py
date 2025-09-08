@@ -233,6 +233,8 @@ async def create_an_excercise_for_a_student(
             return f"Student with username {student_username} not found"
         student_user_id = student.user_id
 
+    logger.info(f"Student user ID: {student_user_id}")
+
     async with httpx.AsyncClient(timeout=30.0) as client:
         url = f"{AGENT_ENDPOINT}/message"
         payload = {
@@ -241,7 +243,7 @@ async def create_an_excercise_for_a_student(
             "role": "student",
         }
         response = await client.post(url, json=payload)
-
+        logger.info(f"Response: {response}")
         if response.status_code != 200:
             return f"Error calling agent: {response.text}"
 
