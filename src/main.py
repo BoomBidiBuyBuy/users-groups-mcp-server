@@ -346,6 +346,17 @@ async def delete_group(
             if not is_allowed:
                 return f"Group with ID {group_id} is not owned by {teacher_user_id}"
 
+            for user in session.query(User).filter(User.groups.contains(group_id)):
+                if user.user_id == teacher_user_id:
+                    # do not deactivate the teacher
+                    continue
+                if len(user.groups) == 1:
+                    # if it is the last group, deactivate the user
+                    logger.info(
+                        f"Deactivating user {user.user_id} because it is the last group"
+                    )
+                    user.is_activated = False
+
             success = Group.delete_by_id(group_id, session)
         if success:
             return f"Group with ID {group_id} deleted successfully"
@@ -434,9 +445,14 @@ async def remove_user_from_group(
             if not is_allowed:
                 return f"Group with ID {group_id} is not owned by {teacher_user_id}"
 
-            success = Group.remove_user(group_id, username, session, teacher_user_id)
+            success = Group.remove_user(group_id, username, session)
         if success:
             user = session.query(User).filter(User.username == username).first()
+
+            if user.user_id == teacher_user_id:
+                # do not deactivate the teacher
+                return f"User {username} is the teacher of the group {group_id}"
+
             # if there is no more groups for the user, deactivate the user
             if len(user.groups) == 0:
                 session.query(User).filter(User.username == username).update(

@@ -138,25 +138,25 @@ class Group(Base):
         return True
 
     @classmethod
-    def remove_user(cls, group_id: int, user_id: str, session) -> bool:
+    def remove_user(cls, group_id: int, username: str, session) -> bool:
         """Remove a user (by user_id) from the group. Returns True on success."""
         group = session.query(cls).filter(cls.id == group_id).first()
         if not group:
             logger.warning(f"Group with ID {group_id} not found")
             return False
 
-        user = session.query(User).filter(User.user_id == user_id).first()
+        user = session.query(User).filter(User.username == username).first()
         if not user:
-            logger.warning(f"User with user_id {user_id} not found")
+            logger.warning(f"User with username {username} not found")
             return False
 
         if user not in group.users:
-            logger.warning(f"User {user_id} is not in group '{group.name}'")
+            logger.warning(f"User {username} is not in group '{group.name}'")
             return False
 
         group.users.remove(user)
         session.commit()
-        logger.info(f"User {user_id} removed from group '{group.name}'")
+        logger.info(f"User {username} removed from group '{group.name}'")
         return True
 
     @classmethod
