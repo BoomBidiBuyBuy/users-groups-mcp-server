@@ -244,12 +244,13 @@ async def create_an_excercise_for_a_student(
         }
         response = await client.post(url, json=payload)
         logger.info(f"Response: {response}")
+        logger.info(f"Response text: {response.text}")
         if response.status_code != 200:
             return f"Error calling agent: {response.text}"
 
         data = response.json()
-        message = json.loads(data.get("message", ""))
-        return message.get("message")
+        message = data.get("message", "")
+        return json.dumps({"excercise": message})
 
 
 @mcp_server.tool(tags=["admin", "debug"])
