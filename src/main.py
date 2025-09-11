@@ -387,9 +387,8 @@ async def add_user_to_group(
             if not user:
                 return f"User with username {username} not found"
             Group.add_user(group_id, user.user_id, session)
-            session.query(User).filter(User.username == username).update(
-                {"is_activated": True}
-            )
+            user.is_activated = True
+            session.commit()
 
             return f"User {username} added to group {group_id} successfully."
     except Exception as e:
@@ -447,23 +446,22 @@ async def remove_user_from_group(
                 return f"Group with ID {group_id} is not owned by {teacher_user_id}"
 
             success = Group.remove_user(group_id, username, session)
-        if success:
-            user = session.query(User).filter(User.username == username).first()
+            if success:
+                user = session.query(User).filter(User.username == username).first()
 
-            if user.user_id == teacher_user_id:
-                # do not deactivate the teacher
-                return f"User {username} is the teacher of the group {group_id}"
+                if user.user_id == teacher_user_id:
+                    # do not deactivate the teacher
+                    return f"User {username} is the teacher of the group {group_id}"
 
-            # if there is no more groups for the user, deactivate the user
-            if len(user.groups) == 0:
-                session.query(User).filter(User.username == username).update(
-                    {"is_activated": False}
-                )
-                logger.info(f"User {username} deactivated successfully")
+                # if there is no more groups for the user, deactivate the user
+                if len(user.groups) == 0:
+                    user.is_activated = False
+                    session.commit()
+                    logger.info(f"User {username} deactivated successfully")
 
-            return f"User {username} removed from group {group_id} successfully"
-        else:
-            return f"Failed to remove user {username} from group {group_id}. Check if both exist and user is in the group."
+                return f"User {username} removed from group {group_id} successfully"
+            else:
+                return f"Failed to remove user {username} from group {group_id}. Check if both exist and user is in the group."
     except Exception as e:
         logger.error(f"Error removing user from group: {e}")
         return f"Database error: {str(e)}"
