@@ -15,8 +15,8 @@ def test_create_group_with_existing_name(session):
 
 
 def test_create_group_with_users(session):
-    User.create(telegram_id=123456789, username="Test User", session=session)
-    Group.create(name="Test Group", user_ids=[123456789], session=session)
+    User.create(username="123456789", session=session)
+    Group.create(name="Test Group", usernames=["123456789"], session=session)
     assert Group.get_by_name("Test Group", session) is not None
     assert Group.get_by_name("Test Group", session)["users_count"] == 1
 
@@ -28,16 +28,37 @@ def test_delete_group(session):
 
 
 def test_add_user_to_group(session):
-    User.create(telegram_id=123456789, username="Test User", session=session)
+    User.create(username="123456789", session=session)
     group = Group.create(name="Test Group", session=session)
-    assert Group.add_user(group["id"], 123456789, session) is True
+    assert Group.add_user(group["id"], "123456789", session) is True
     assert Group.get_by_name("Test Group", session) is not None
 
 
 def test_remove_user_from_group(session):
-    User.create(telegram_id=123456789, username="Test User", session=session)
+    User.create(username="123456789", session=session)
     group = Group.create(name="Test Group", session=session)
-    assert Group.add_user(group["id"], 123456789, session) is True
-    assert Group.remove_user(group["id"], 123456789, session) is True
+    assert Group.add_user(group["id"], "123456789", session) is True
+    assert Group.remove_user(group["id"], "123456789", session) is True
     assert Group.get_by_name("Test Group", session) is not None
     assert Group.get_by_name("Test Group", session)["users_count"] == 0
+
+
+def test_create_group_with_owner(session):
+    User.create(user_id="123456789", session=session)
+    Group.create(name="Test Group", owner_user_id="123456789", session=session)
+    group_data = Group.get_by_name("Test Group", session)
+    assert group_data is not None
+    assert group_data["owner"] is not None
+    assert group_data["owner"]["user_id"] == "123456789"
+
+
+def test_create_group_without_owner(session):
+    Group.create(name="Test Group", session=session)
+    group_data = Group.get_by_name("Test Group", session)
+    assert group_data is not None
+    assert group_data["owner"] is None
+
+
+def test_create_group_with_invalid_owner(session):
+    with pytest.raises(ValueError, match="Owner with user_id '999' not found"):
+        Group.create(name="Test Group", owner_user_id="999", session=session)
