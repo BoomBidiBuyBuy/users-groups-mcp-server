@@ -116,25 +116,25 @@ class Group(Base):
         return True
 
     @classmethod
-    def add_user(cls, group_id: int, user_id: str, session) -> bool:
+    def add_user(cls, group_id: int, username: str, session) -> bool:
         """Add a user (by user_id) to the group. Returns True on success."""
         group = session.query(cls).filter(cls.id == group_id).first()
         if not group:
             logger.warning(f"Group with ID {group_id} not found")
             return False
 
-        user = session.query(User).filter(User.user_id == user_id).first()
+        user = session.query(User).filter(User.username == username).first()
         if not user:
-            logger.warning(f"User with user_id {user_id} not found")
+            logger.warning(f"User with username {username} not found")
             return False
 
         if user in group.users:
-            logger.info(f"User {user_id} is already in group '{group.name}'")
+            logger.info(f"User {username} is already in group '{group.name}'")
             return True
 
         group.users.append(user)
         session.commit()
-        logger.info(f"User {user_id} added to group '{group.name}'")
+        logger.info(f"User {username} added to group '{group.name}'")
         return True
 
     @classmethod

@@ -386,7 +386,7 @@ async def add_user_to_group(
             user = session.query(User).filter(User.username == username).first()
             if not user:
                 return f"User with username {username} not found"
-            Group.add_user(group_id, user.user_id, session)
+            Group.add_user(group_id, user.username, session)
             user.is_activated = True
             session.commit()
 
