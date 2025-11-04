@@ -230,12 +230,13 @@ async def create_an_excercise_for_a_student(
     with SessionLocal() as session:
         student = session.query(User).filter(User.username == student_username).first()
         if not student:
+            logger.error(f"Student with username {student_username} not found")
             return f"Student with username {student_username} not found"
         student_user_id = student.user_id
 
     logger.info(f"Student user ID: {student_user_id}")
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    async with httpx.AsyncClient(timeout=120.0) as client:
         url = f"{AGENT_ENDPOINT}/message"
         payload = {
             "message": excercise_creation_instruction,
